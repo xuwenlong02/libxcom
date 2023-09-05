@@ -30,16 +30,7 @@ public:
     /*
      * 解析表达式
      */
-
-    virtual std::string& GetName();
-    virtual std::string& GetDot();
-    virtual int32_t GetItemId() const;
-
     virtual void SetAddr(ID_DEV &devId);
-    virtual void SetTempleId(int32_t modelId);
-    virtual void SetName(const std::string& name);
-    virtual void SetDot(const std::string& dot);
-    virtual void SetItemId(int32_t itemId);
     virtual void SetRegLength(int32_t reglen);
     virtual void SetRegAddr(uint16_t reg);
     virtual void ParseParams(
@@ -69,10 +60,10 @@ public:
     OpValue RateCall(OpValue &result, float rate);
     OpValue GenerateNext();
 
-    RECV_RESULT ParseRecvCmd(const CmdValue &recvCmd,
-            int32_t funcId = -1);
-
-    OpValue GenerateCmd();
+    RECV_RESULT ParseRecvCmd(
+        const CmdValue &recvCmd,
+        const std::string& func,
+        int32_t funcId = -1);
 
     RECV_RESULT ParseCmd(OpValue& result,const CmdValue &recvCmd,const string& func,
             int32_t funcId = -1);
@@ -80,13 +71,7 @@ public:
     OpValue GenerateCmd(const string &func);
 
     void ResetCmd();
-    string FuncName(int flag);
-
-    bool isCmdEqual(const tDataItem &item);
-    bool isParamEqual(const tDataItem &item);
 private:
-    tExpress getExpr(int flag, int funcId);
-
     static tExpress wrapExpress(const string &str);
 
     class ParamsLock
@@ -107,7 +92,6 @@ private:
     vector<OpValue>   m_listValues;
 
     Operator    m_iOperator;
-    int32_t         m_iItemId;
     Template    m_template;
     ID_DEV      m_iDevAddr;
     std::string m_strname;
@@ -115,7 +99,6 @@ private:
     int32_t         m_reglen;
     tExpress    m_tDataExpr;
     float         m_fRate;
-    int32_t         m_iFuncId;
     uint16_t         m_linkReg;
 };
 

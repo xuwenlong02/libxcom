@@ -31,39 +31,9 @@ bool DataItem::IsEmpty()
     return false;
 }
 
-string &DataItem::GetName()
-{
-    return m_strname;
-}
-
-string &DataItem::GetDot()
-{
-    return m_strdot;
-}
-
-int32_t DataItem::GetItemId() const
-{
-    return m_iItemId;
-}
-
 void DataItem::SetAddr(ID_DEV &devId)
 {
     m_iDevAddr = devId;
-}
-
-void DataItem::SetName(const string &name)
-{
-    m_strname = name;
-}
-
-void DataItem::SetDot(const string &dot)
-{
-    m_strdot = dot;
-}
-
-void DataItem::SetItemId(int32_t itemId)
-{
-    m_iItemId = itemId;
 }
 
 void DataItem::SetRegLength(int32_t reglen)
@@ -175,33 +145,8 @@ const ID_DEV &DataItem::DevAddr()
     return m_iDevAddr;
 }
 
-OpValue DataItem::GenerateNext()
-{
-    m_iFuncId++;
-
-//    m_iOperator.clearOut();
-    ParamsLock palock(m_iOperator);
-    m_iOperator.AddtoStack(Operator::AUTO_PARAM,m_listValues);
-    tExpress expr = getExpr(0,m_iFuncId);
-    if (expr == nullptr) {
-        return OpValue::Null();
-    }
-    return expr->GenCmd(m_iOperator);
-}
-
-OpValue DataItem::GenerateCmd()
-{
-    //恢复计算
-    m_iFuncId = 0;
-    m_iOperator.clearOut();
-
-    return GenerateCmd(FuncName(0));
-}
-
 RECV_RESULT DataItem::ParseCmd(OpValue& result,const CmdValue &recvCmd, const string &func, int32_t funcId)
 {
-    if (funcId != -1)
-        m_iFuncId = funcId;
     if (recvCmd.IsEmpty())
         return RECV_NOT_AVAILIABLE;
 
@@ -230,8 +175,8 @@ RECV_RESULT DataItem::ParseCmd(OpValue& result,const CmdValue &recvCmd, const st
 OpValue DataItem::GenerateCmd(const string &func)
 {
     ParamsLock palock(m_iOperator);
-    m_iOperator.AddtoStack(Operator::AUTO_PARAM,m_listValues);
-    tExpress expr = LocateFunction(func,m_iFuncId);
+    m_iOperator.AddtoStack(Operator::AUTO_PARAM, m_listValues);
+    tExpress expr = LocateFunction(func, -1);
     if (expr == nullptr) {
         LOG_ERR("express is invalid");
         return CmdValue::Null();
@@ -242,10 +187,10 @@ OpValue DataItem::GenerateCmd(const string &func)
 
 RECV_RESULT DataItem::ParseRecvCmd(
         const CmdValue &recvCmd,
-        int32_t funcId)
-{
+        const std::string& func,
+        int32_t funcId) {
     OpValue result;
-    return ParseCmd(result,recvCmd,FuncName(1),funcId);
+    return ParseCmd(result, recvCmd, func, funcId);
 }
 
 OpValue DataItem::Result()
@@ -256,74 +201,13 @@ OpValue DataItem::Result()
 #ifdef LOCAL_TEST
         return 23.77;
 #endif
-    int32_t acq = m_iItemId/10000;
-    if ( acq == 3 || acq == 1 || acq == 4) {
-
-        OpValue result = expr->ParseCmd(m_iOperator);
-        return RateCall(result,m_fRate);
-    }
-    else
-        return expr->ParseCmd(m_iOperator);
+    OpValue result = expr->ParseCmd(m_iOperator);
+    return RateCall(result,m_fRate);
 }
 
 void DataItem::ResetCmd()
 {
-    m_iFuncId = 0;
     m_iOperator.clearOut();
-}
-
-string DataItem::FuncName(int flag)
-{
-    if (m_iItemId/10000 == 3 || m_iItemId/10000 == 1||
-            m_iItemId/10000 == 4) {
-        return flag == 0?"send":"recv";
-    }
-    else if (m_iItemId/10000 == 2) {
-        return flag == 0?"indict":"undict";
-    }
-    else {
-        return flag == 0?"modsnd":"modrcv";
-    }
-}
-
-bool DataItem::isCmdEqual(const tDataItem &item)
-{
-    int32_t it1;
-    int32_t it2;
-
-    if (item == nullptr)
-        return false;
-    it1 = item->m_iItemId/10000;
-    it2 = m_iItemId/10000;
-    if (it1 != 2 && it2 != 2) {
-        return isParamEqual(item);
-    }
-    return false;
-}
-
-bool DataItem::isParamEqual(const tDataItem &item)
-{
-    vector<OpValue>::iterator it1 = m_listValues.begin();
-    vector<OpValue>::iterator it2 = item->m_listValues.begin();
-
-    while (it1 != m_listValues.end() && it2 != item->m_listValues.end()) {
-        if (*it1 != *it2) {
-            return false;
-        }
-        it1++;
-        it2++;
-    }
-
-    if (it1 != m_listValues.end() || it2 != item->m_listValues.end())
-        return false;
-    return true;
-}
-
-tExpress DataItem::getExpr(
-        int flag,
-        int funcId)
-{
-    return LocateFunction(FuncName(flag),funcId);
 }
 
 TYPE_DEFINE DataItem::DataType()

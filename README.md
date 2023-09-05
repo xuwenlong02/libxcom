@@ -1,7 +1,79 @@
 @[toc]
 # Xcom 串口语言
- Xcom串口语言是一种面向过程的计算机语言，用于串口协议指令的封装和解析。简单灵活，支持任意格式的指令和数学表达式运算。在实际运用中通过这种语言可以快速从串口指令序列中提取任意需要的数据并解析出结果。
+ Xcom用于串口协议指令(但不限于串口)的封装和解析。简单灵活，支持任意格式的指令和数学表达式运算。在实际运用中通过这种语言可以快速从串口指令序列中提取任意需要的数据并解析出结果。
 Xcom 是用c++语言实现的翻译型语言，对外开源，支持交叉编译。
+# 快速入门
+开发一个modbus协议。
+## 第一步, 协议构建
+```python
+#modbus协议
+def crc16: $crc($1,0x8005,0xffff,0x0000,0)
+
+# $addr $len 都是输入的参数
+def send:     [$addr 03H $1  $itom(2,$len) $crc16($group(0,$pos))]
+def recv:     [$addr 03H     $ditch(1,$assign(&dl,$0))     $data($ditch($dl))  $ditch(2,$chk($0,$crc16($group(0,$pos))))]
+```
+上面首先是定义了一个crc 16计算的函数， $crc 是内置函数，包含5个参数，用于将传入的数据计算出对应的CRC16的值。
+然后，是定义了两个函数， send，recv是函数名，可以自定义。
+send 是定义了协议的封装逻辑，[] 是指令构建运算符。
+ 在内部，第1个是$addr 表示设备地址，这是一个变量，最终会转换成一个字节的16进制数字.
+ 内置的变量还包括$len, 表示寄存器长度，由用户自定义。
+ 第2个03H 是固定的功能码，在modbus协议里一般表示读取数据
+ 第3个$1 是传入的第一个参数。 比如在代码里调用时使用$send(3), 那么这里$1 就是3
+ 第4个是$itom(2,$len), $itom 是内置函数，表示把一个数转换成16进制指令，这里的2表示两个字节，即最终会转变成2个字节的指令。 比如$itom(2, 37) = 00H 25H
+ 第5个相对复杂。 先看最里面的括号，$group(0,$pos) 表示提取[] 内从第0个指令到当前位置之前的（$pos 表示位置）指令， 将他作为参数传给$crc16 进行CRC16计算。
+ 这样，就完成了send 的指令构建
+
+ recv 跟send差不多，但是recv是对数据解析的指令。$ditch 指令是他的一个特征，$ditch是从当前位置挖去N个字节，并进行处理。第一个参数是挖去的字节数，第二个参数表示动作，如果不做任何动作，第二个参数可不填。$0 是$ditch挖取的数据。$ditch(1,$assign(&dl,$0)) 表示挖去一个字节，并赋值给dl.  最后一个$ditch 是挖取2个字节，并与校验码进行比较，判断校验码是否正确。
+
+ ## 第二步， 接入代码
+
+ ```c++
+ int main() {
+    setenv("LOG", "stdout", 1);  // 将log设置到控制台输出
+    ID_DEV devId("51H");
+    const std::string templ = "#modbus协议\n" 
+"def crc16: $crc($1,0x8005,0xffff,0x0000,0)\n"
+"# $addr $len 都是输入的参数\n"
+"def send:     [$addr 03H $1  $itom(2,$len) $crc16($group(0,$pos))]\n"
+"def recv:     [$addr 03H     $ditch(1,$assign(&dl,$0))     $data($ditch($dl))  $ditch(2,$chk($0,$crc16($group(0,$pos))))]"; 
+    DataItem ditem(devId, templ);
+    ditem.SetRegLength(2); // 设置寄存器长度， 即$len 的值
+    ditem.ParseDataExpr("$int($data)", 1); // 最终的结果进行计算，这里是对recv 挖取的$data 转换成浮点数，1.0 表示比例因子为1， 即将结果再除以1.0
+
+    std::vector<std::string> params;
+    params.push_back("04H");
+    ditem.ParseParams(params); // 这里传入的是参数列表, 对应着$1, $2, $3 等等。这里只有一个参数
+    
+    // 生成发生命令
+    OpValue cmd = ditem.GenerateCmd("send");
+    cmd.Show();
+    if (cmd.IsEmpty())
+        return -1;
+    CmdValue genCmd = cmd.GenCmd();
+    genCmd.Show();
+
+    // 中间省略发送接收过程
+    
+    // 处理接收指令
+    OpValue result;
+    uint8_t cmd_buf[] = {0x51,0x03,0x04,0x00,0x00,0x00,0x1E,0x2A,0x3E};
+    CmdValue recv(cmd_buf, sizeof(cmd_buf)/sizeof(cmd_buf[0]));
+    recv.Show();
+    if (ditem.ParseRecvCmd(recv, "recv") != RECV_COMPLETE) {
+        return -1;
+    }
+    result = ditem.Result();
+    result.Show();
+    if (result != 0x1E) {
+        return -1;
+    }
+    return 0;
+    
+ }
+ 
+ ```
+
 ## 1. 基本语法
 ### 1.1 数字和运算符
 #### 1.1.1 常量和编码

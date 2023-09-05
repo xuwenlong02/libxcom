@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 
 #project name
 set(PROJECT_NAME "libxcom")
-option(LIBXCOM_TEST "test mode" OFF)
+option(LIBXCOM_TEST "test mode" ON)
 set(CMAKE_CXX_FLAGS "-fPIC -std=gnu++0x")
 
 # get git branch
@@ -38,6 +38,7 @@ project(${PROJECT_NAME})
 add_subdirectory(utils)
 add_subdirectory(libxcom)
 if(LIBXCOM_TEST)
+    enable_testing()
     add_subdirectory(test)
 endif()
 
